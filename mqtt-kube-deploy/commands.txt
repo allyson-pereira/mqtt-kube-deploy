@@ -1,0 +1,141 @@
+## Installing Microk8s ##
+
+# Automatically installs latest stable Microk8s build. In my case, this was 1.27
+sudo snap install microk8s --classic 
+
+# Microk8s needs traffic forwarding enabled. iptables -P FORWARD ACCEPT does this while iptables-persistent makes it a persistent change 
+sudo apt-get install iptables-persistent
+sudo iptables -P FORWARD ACCEPT
+
+# Add user to microk8s admin group
+sudo usermod -a -G microk8s $USER 
+
+# Logout/login to apply usermod changes
+su - $USER 
+
+# Enables required
+microk8s enable dns
+microk8s enable keda
+microk8s enable ha-cluster
+microk8s enable hostpath-storage
+microk8s enable host-access
+microk8s enable registry
+microk8s enable ingress
+
+# Make sure microk8s installed successfully
+microk8s status
+
+# Run if above returns "Microk8s is not running" message and wait for output. Will output a tarball of information on Kubernetes system statuses for troubleshooting
+microk8s inspect
+
+## If microk8s status is "Microk8s is not running" AND microk8s inspect returns all services running ##
+
+# Check if install made a .kube directory. !!! NOTE: only the master node needs a .kube config, you do not need to do this for leaf nodes !!! 
+cd /.kube 
+
+# Check contents to make sure there are no old configs
+ls
+
+## If output is No such file or directory OR .kube needs to be remade after reinstallation: ## 
+
+# Check that config on microk8s is valid if microk8s is installed, should not output anything with "null" fields. Uninstall/reinstall if invalid
+microk8s config 
+
+# Run if .kube is still present from prior microk8s installation - snap uninstall may not get rid of it and this can cause problems
+sudo rm ~/.kube 
+
+# Makes .kube directory and copies microk8s config to .kube directory 
+mkdir -p ~/.kube
+microk8s config > ~/.kube/config 
+
+# Add user to microk8s admin group (if not already done) and adds .kube config to user path
+sudo usermod -a -G microk8s $USER 
+sudo chown -f -R $USER ~/.kube
+
+# Logout/login to apply usermod/chown changes. If microk8s status is still incorrect upon logging back in, uninstall/check for .kube directory and remove if present/reinstall
+su - $USER 
+
+## Adding nodes ## 
+
+# Generate token/command to add new node 
+microk8s add-node  
+
+# Output should give variations of the following, copy the --worker flagged one directly from master cmd to the leaf node cmd. A new command/token needs to be generated for each attempted or successful join, the token is used regardless of whether or not the join is successful 
+microk8s join [MASTERIP]:[PORT]/[TOKEN] --worker 
+
+## If joining throws hostname resolve errors ##
+
+# Edit the host file on the master node and make sure the IPs/hostnames of each leaf/worker node are added !!! NOTE: this also only matters on the master node !!! 
+sudo nano /etc/hosts
+
+# Wait a few minutes and check to make sure the node was successfully added. -owide gives more output so that containerd version, internal/external IPs, OS-image, and kernel can be checked for troubleshooting
+microk8s kubectl get nodes -owide 
+
+## Building docker image ##
+
+# Check if docker is installed and working properly
+docker run hello-world 
+
+# Build Docker image from Dockerfile. Don't forget to take the period 
+cd ~/path/to/Dockerfile
+docker build -t [my-image]:latest . 
+
+# Tag and push to microk8s registry. This allows the image to be pulled locally without pushing to a public repo
+docker tag [my-image]:latest localhost:32000/[my-image]:registry
+docker push localhost:32000/[my-image]:registry
+
+# Test to ensure that image was built correctly and works as intended in Docker before K8s deployment
+docker run -it localhost:32000/[my-image]:registry /bin/bash
+
+## If using saved images ##
+
+# Load image (if using .tar.gz saved image)
+docker load < /path/to/[my-image].tar.gz
+
+# Load image (if using .tar saved image)
+docker load --input /path/to/[my-image].tar
+
+# Confirm that image loaded correctly and functions in Docker
+docker images
+docker run -it [my-image]:latest /bin/bash
+
+# If image functions correctly, tag (if not already tagged) and push to microk8s registry
+docker tag [my-image]:latest localhost:32000/[my-image]:registry
+docker push localhost:32000/[my-image]:registry
+
+## Building pod ##
+
+# Create your pod from yaml. Everything should be present for the pod in one deployment yaml, but repeat as necessary for any other components in separate yamls, eg. PersistentVolume yamls or Ingresses
+cd ~/path/to/deployment/yaml
+microk8s kubectl apply -f [deployment].yaml 
+
+# Same as get nodes -owide but for pods. Wait some minutes for pod to schedule, check status, -owide gives more information for troubleshooting 
+microk8s kubectl get pods -owide 
+
+# Exec into pod once ready with bash
+microk8s kubectl exec -it [pod-name] -- /bin/sh 
+
+# Get stream of output logs
+microk8s kubectl logs -f [pod-name]
+
+## Other useful commands/troubleshooting ##
+
+# Stop/start microk8s
+microk8s stop 
+microk8s start 
+
+# Checking status of system services, usually invisible by default unless specifying the kube-system namespace. This allows for checking if Kubernetes system nodes are failing to schedule pods, eg. calico node failure
+microk8s kubectl get all -n kube-system
+
+# Uninstall microk8s - run reset command first for cleanest uninstallation. Add --purge flag before microk8s in remove command to completely remove a package
+microk8s reset
+sudo snap remove microk8s
+
+# Remove microk8s nodes from master
+microk8s remove node [name-of-node]
+
+# Force remove microk8s nodes from master !! Can cause problems with calico nodes/cluster communication !!
+microk8s remove node [name-of-node] --force
+
+# Remove microk8s nodes from node
+microk8s leave

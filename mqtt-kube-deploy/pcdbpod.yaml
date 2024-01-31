@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-pipe
+  namespace: mqtt
+  labels:
+    app: db-pipe
+spec:
+  selector:
+    matchLabels:
+      app: db-pipe
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: db-pipe
+    spec:
+      containers:
+      - name: db-pipe
+        image: localhost:32000/dbpipe:registry
+        imagePullPolicy: Always

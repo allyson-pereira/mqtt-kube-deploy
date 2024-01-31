@@ -1,0 +1,38 @@
+{
+    "mysql": {
+        "user": "testuser",
+        "password": "pass",
+        "host": "10.4.5.16",
+        "database": "test_schema",
+        "raise_on_warnings": false
+    },
+    "persistent_data": false,
+    
+    "Messenger1": {
+        "address": "10.1.103.32",
+        "topic": "test1",
+        "port": 1883,
+        "keepalive": 60
+    }
+
+    "Messenger2": {
+        "address": "10.1.103.32",
+        "topic": "test2",
+        "port": 1883,
+        "keepalive": 60
+    }
+
+    "Messenger3": {
+        "address": "10.1.103.32",
+        "topic": "test3",
+        "port": 1883,
+        "keepalive": 60
+    }
+
+    "Messenger4": {
+        "address": "10.1.103.32",
+        "topic": "test4",
+        "port": 1883,
+        "keepalive": 60
+    }
+}
